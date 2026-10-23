@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#101b1d">
+<title>آرش سیتی RP | آنلاین</title>
+<style>
+:root{--gold:#f4c66b;--mint:#65e0b0;--glass:rgba(12,22,25,.84);--line:rgba(255,255,255,.14);--text:#f4f5ef;--muted:#a7b9b4}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111d1b;color:var(--text);font-family:Tahoma,Arial,sans-serif;touch-action:none}button{font:inherit;color:inherit;border:1px solid var(--line);cursor:pointer;touch-action:manipulation;user-select:none}button:active{transform:scale(.97)}#game{position:fixed;inset:0;width:100%;height:100%;display:block;background:#64856a}
+.vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 45%,rgba(2,10,9,.28) 100%);z-index:1}
+#hud{position:fixed;z-index:3;inset:0;pointer-events:none;padding:calc(env(safe-area-inset-top) + 10px) 12px calc(env(safe-area-inset-bottom) + 12px);display:flex;flex-direction:column;justify-content:space-between;gap:12px}
+.toprow{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}.brand,.stats,.minimap-wrap,.panel{background:var(--glass);border:1px solid var(--line);box-shadow:0 12px 32px #0004;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.brand{padding:10px 13px;border-radius:16px;max-width:60%;}.brand-title{font-size:15px;font-weight:900;letter-spacing:.2px}.brand-sub{font-size:10px;color:var(--muted);margin-top:4px}.brand-mark{color:var(--gold)}
+.stats{padding:10px 12px;border-radius:16px;min-width:140px;max-width:47%;}.coinrow{font-weight:900;font-size:14px;color:var(--gold);display:flex;justify-content:space-between;gap:12px;align-items:center}.statlabel{font-size:10px;color:var(--muted);font-weight:500}.energyline{margin-top:8px;display:flex;align-items:center;gap:7px;font-size:10px;color:#d9e6dd}.energybar{height:6px;flex:1;background:#293a36;border-radius:8px;overflow:hidden}.energyfill{height:100%;width:100%;border-radius:8px;background:linear-gradient(90deg,#4ed6a3,#d1ef87);transition:width .12s}
+.midrow{display:flex;justify-content:space-between;align-items:flex-start;margin-top:5px}.minimap-wrap{width:112px;height:112px;border-radius:17px;overflow:hidden;pointer-events:auto;position:relative;border-color:#ffffff2c}.minimap-wrap canvas{width:100%;height:100%;display:block}.map-label{position:absolute;bottom:5px;right:7px;font-size:9px;pointer-events:none;color:white;text-shadow:0 1px 5px #000;background:#081210aa;padding:3px 6px;border-radius:7px}
+#status{align-self:flex-start;background:#0b1716d9;border:1px solid #ffffff20;border-radius:10px;padding:7px 10px;font-size:11px;color:#c8d8ce;pointer-events:none}.bottomrow{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}.joystick-wrap{width:142px;height:142px;position:relative;pointer-events:auto;touch-action:none;flex:0 0 auto}.joy-base{position:absolute;inset:7px;border-radius:50%;border:1px solid #ffffff42;background:radial-gradient(circle,#ffffff10,#07110f8c);box-shadow:inset 0 0 22px #0004,0 8px 20px #0003}.joy-base:before{content:"";position:absolute;inset:29px;border-radius:50%;border:1px dashed #ffffff1f}.joy-stick{position:absolute;left:50%;top:50%;width:51px;height:51px;margin:-25.5px;border-radius:50%;background:linear-gradient(145deg,#e4f5e7,#6f9684);border:2px solid #ffffff88;box-shadow:0 5px 14px #0006;transform:translate(0,0)}
+.controls{pointer-events:auto;display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:54%;}.action-row{display:flex;gap:7px;align-items:center;justify-content:flex-end;flex-wrap:wrap}.control-btn{border-radius:14px;background:var(--glass);padding:10px 12px;font-size:12px;font-weight:800;box-shadow:0 8px 18px #0004;backdrop-filter:blur(10px);min-height:43px}.control-btn.primary{background:linear-gradient(135deg,#f5cd77,#c38b36);color:#1b211c;border-color:#ffdf99}.control-btn.green{background:linear-gradient(135deg,#70e2b5,#299c77);color:#07251b;border-color:#9bf1cc}.control-btn[hidden]{display:none!important}.hint{background:#0b1716dc;border:1px solid #ffffff20;border-radius:10px;padding:7px 10px;font-size:10px;color:#e8ede8;max-width:245px;text-align:right}
+#toast{position:fixed;z-index:20;left:50%;top:22%;transform:translate(-50%,-10px);opacity:0;transition:.22s ease;background:#101c1aee;border:1px solid #ffffff25;border-radius:13px;padding:11px 15px;box-shadow:0 12px 35px #0006;font-size:12px;text-align:center;max-width:90%;pointer-events:none}#toast.show{opacity:1;transform:translate(-50%,0)}
+.overlay{position:fixed;z-index:10;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(3,10,9,.64);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}.overlay[hidden]{display:none!important}.panel{width:min(580px,100%);max-height:min(84dvh,760px);overflow:auto;border-radius:22px;padding:18px;pointer-events:auto}.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}.panel-head h2{font-size:18px;margin:0}.close-btn{width:36px;height:36px;border-radius:12px;background:#ffffff10;font-size:20px;flex:0 0 auto}.lead{font-size:12px;color:var(--muted);line-height:1.8;margin:0 0 15px}.car-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.car-card{border:1px solid #ffffff19;border-radius:16px;background:linear-gradient(145deg,#ffffff0d,#ffffff04);padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}.car-art{height:80px;border-radius:12px;background:radial-gradient(ellipse at center,#385049,#172624);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}.car-art:before{content:"";position:absolute;width:110px;height:14px;background:#ffffff12;border-radius:50%;transform:rotate(-20deg)}.car-art canvas{width:116px;height:72px}.car-name{font-size:14px;font-weight:900}.car-desc{font-size:10px;color:var(--muted);line-height:1.7;min-height:30px}.car-foot{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:10px;color:var(--gold)}.car-btn{width:100%;border-radius:11px;padding:10px 7px;background:#ffffff10;font-size:11px;font-weight:900}.car-btn.buy{background:linear-gradient(135deg,#f6cd78,#c38b36);color:#1c221b;border:0}.car-btn.use{background:linear-gradient(135deg,#70e3b5,#299c77);color:#08261c;border:0}.car-btn:disabled{opacity:.65;cursor:default}
+.map-panel{width:min(760px,100%)}#bigMap{width:100%;height:auto;aspect-ratio:1000/620;max-height:min(52dvh,440px);display:block;border-radius:15px;background:#34543f;border:1px solid #ffffff19}.legend{display:flex;gap:12px;flex-wrap:wrap;color:#c5d4ca;font-size:11px;margin-top:12px}.legend span{display:flex;align-items:center;gap:5px}.dot{width:9px;height:9px;border-radius:50%;display:inline-block}.welcome-panel{text-align:center;width:min(460px,100%);padding:25px 22px}.welcome-logo{font-size:43px;margin:4px 0 10px}.welcome-panel h1{margin:0;font-size:26px;letter-spacing:-.5px}.welcome-panel h1 b{color:var(--gold)}.welcome-panel p{font-size:12px;line-height:2;color:#bccbc1;margin:12px 0 18px}.name-input-wrap{display:block;text-align:right;font-size:11px;font-weight:800;color:#d9e5dd;margin:0 0 13px}.name-input{display:block;width:100%;margin-top:7px;padding:12px 13px;border-radius:12px;border:1px solid #ffffff24;background:#071310;color:#fff;font:inherit;outline:none;touch-action:manipulation}.name-input:focus{border-color:#70e3b5;box-shadow:0 0 0 2px #70e3b522}.feature-row{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin:15px 0 19px}.feature-pill{font-size:10px;border:1px solid #ffffff1b;border-radius:20px;background:#ffffff08;padding:7px 10px;color:#d9e5dd}.wide-btn{width:100%;border-radius:14px;padding:13px;font-weight:900;font-size:14px}.footnote{font-size:10px;color:#81968b;margin-top:12px}
+@media (max-width:420px){.brand{padding:9px 10px}.brand-title{font-size:13px}.stats{min-width:132px;padding:9px 10px}.minimap-wrap{width:96px;height:96px}.joystick-wrap{width:126px;height:126px}.control-btn{padding:9px 10px;font-size:11px;min-height:40px}.hint{font-size:9px}.panel{padding:14px}.car-list{gap:8px}.car-card{padding:9px}.car-art{height:70px}}
+@media (max-height:500px){.joystick-wrap{width:105px;height:105px}.joy-stick{width:42px;height:42px;margin:-21px}.minimap-wrap{width:82px;height:82px}.stats{padding:7px 9px}.brand{padding:7px 9px}.control-btn{min-height:35px;padding:7px 9px}.bottomrow{align-items:flex-end}.panel{max-height:90dvh}}
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="نقشه بازی آرش سیتی"></canvas><div class="vignette"></div>
+<div id="hud">
+ <div>
+  <div class="toprow">
+   <div class="brand"><div class="brand-title"><span class="brand-mark">◆</span> آرش سیتی <span style="color:#8ae5bc">RP</span></div><div class="brand-sub">شهر آزاد · <span id="onlineStatus">چندنفره آماده</span></div></div>
+   <div class="stats"><div class="coinrow"><span>◈ سکه</span><span>∞ بی‌نهایت</span></div><div class="energyline"><span>⚡ انرژی</span><div class="energybar"><div class="energyfill" id="energyFill"></div></div><span id="energyText">100٪</span></div></div>
+  </div>
+  <div class="midrow"><div id="status">● پیاده‌روی در شهر</div><div class="minimap-wrap" id="miniWrap" title="باز کردن نقشه"><canvas id="miniMap"></canvas><div class="map-label">نقشه شهر ↗</div></div></div>
+ </div>
+ <div class="bottomrow">
+  <div class="joystick-wrap" id="joy"><div class="joy-base"></div><div class="joy-stick" id="stick"></div></div>
+  <div class="controls">
+   <div id="hint" class="hint">برای حرکت، جوی‌استیک را بکش.</div>
+   <div class="action-row">
+    <button class="control-btn" id="mapBtn">🗺 نقشه</button>
+    <button class="control-btn primary" id="garageBtn" hidden>🚘 پارکینگ</button>
+    <button class="control-btn green" id="exitCarBtn" hidden>پیاده‌شدن ↗</button>
+    <button class="control-btn" id="sprintBtn">⚡ دویدن</button>
+   </div>
+  </div>
+ </div>
+</div>
+<div id="toast" role="status"></div>
+<div class="overlay" id="welcome">
+ <div class="panel welcome-panel">
+  <div class="welcome-logo">🏙️</div><h1><b>آرش سیتی</b> RP</h1>
+  <p>به شهر آزاد خوش آمدی! در میدان آرش قدم بزن، نقشه را بررسی کن و به پارکینگ برو تا ماشین بخری و پشت فرمان بنشینی.</p>
+  <label class="name-input-wrap" for="playerNameInput">نام بازیکن در شهر
+   <input id="playerNameInput" class="name-input" maxlength="18" autocomplete="nickname" placeholder="مثلاً آرش" />
+  </label>
+  <div class="feature-row"><span class="feature-pill">⚡ انرژی پویا</span><span class="feature-pill">◈ سکه بی‌نهایت</span><span class="feature-pill">🚗 ماشین قابل‌راندن</span><span class="feature-pill">🗺 نقشه زنده</span></div>
+  <button class="wide-btn control-btn primary" id="startBtn">ورود به شهر　←</button><div class="footnote">حرکت: جوی‌استیک یا کلیدهای جهت‌دار · تعامل: دکمه پارکینگ / E</div>
+ </div>
+</div>
+<div class="overlay" id="garageOverlay" hidden>
+ <div class="panel"><div class="panel-head"><h2>🚘 پارکینگ آرش</h2><button class="close-btn" data-close="garageOverlay" aria-label="بستن">×</button></div>
+  <p class="lead">هر ماشینی را انتخاب کن. سکه‌ها بی‌نهایت‌اند؛ بعد از خرید روی «سوار شو» بزن تا ماشین وارد بازی شود.</p>
+  <div class="car-list" id="carList"></div><div style="margin-top:13px;font-size:10px;color:#8ca197;line-height:1.8">برای برگشتن به پیاده‌روی، دکمه «پیاده‌شدن» را بزن. ماشین و خریدها روی همین دستگاه ذخیره می‌شوند.</div>
+ </div>
+</div>
+<div class="overlay" id="mapOverlay" hidden>
+ <div class="panel map-panel"><div class="panel-head"><h2>🗺 نقشه آرش سیتی</h2><button class="close-btn" data-close="mapOverlay" aria-label="بستن">×</button></div><p class="lead">موقعیتت با نقطه آبی مشخص شده. پارکینگ در سمت راست میدان آرش قرار دارد.</p><canvas id="bigMap"></canvas><div class="legend"><span><i class="dot" style="background:#62d6ff"></i> موقعیت تو</span><span><i class="dot" style="background:#ff937a"></i> بازیکن‌های دیگر</span><span><i class="dot" style="background:#f4c66b"></i> میدان آرش</span><span><i class="dot" style="background:#75e4b2"></i> پارکینگ</span></div></div>
+</div>
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const canvas = $('game'), ctx = canvas.getContext('2d', {alpha:false});
+const worldCanvas = document.createElement('canvas');
+const mini = $('miniMap'), mctx = mini.getContext('2d');
+const bigMap = $('bigMap'), bctx = bigMap.getContext('2d');
+const WORLD = {w:2400,h:1800}, CENTER={x:1200,y:850}, GARAGE={x:1780,y:805};
+const cars = [
+ {id:'hatch',name:'آریا اسپرت',desc:'ماشین شهری چابک · مناسب گشت‌وگذار',color:'#d85c4f',speed:255,handling:2.7},
+ {id:'sedan',name:'سدان مشکی',desc:'سواری نرم و سرعت متعادل',color:'#353f48',speed:295,handling:2.45},
+ {id:'sport',name:'سوپر اسپرت',desc:'بالاترین سرعت برای رانندگی آزاد',color:'#e5b94f',speed:365,handling:2.25},
+ {id:'suv',name:'شاسی‌بلند',desc:'خودروی قدرتمند با کنترل پایدار',color:'#4a9b7b',speed:310,handling:2.1}
+];
+const safeStore = {
+ get(){try{return JSON.parse(localStorage.getItem('arashCityRP_v1')||'{}')}catch(_){return {}}},
+ set(v){try{localStorage.setItem('arashCityRP_v1',JSON.stringify(v))}catch(_){}}
+};
+let saved=safeStore.get();
+let owned = new Set(Array.isArray(saved.owned)?saved.owned.filter(id=>cars.some(c=>c.id===id)):[]);
+if(!owned.size) owned.add('hatch');
+let selectedId = cars.some(c=>c.id===saved.selected && owned.has(saved.selected))?saved.selected:'hatch';
+let player={x:1490,y:895,angle:Math.PI,energy:100,driving:false};
+let vehicle=null, camera={x:player.x,y:player.y}, keys=new Set(), joy={x:0,y:0,active:false,pointer:null}, sprint=false;
+let lastTime=performance.now(),toastTimer=null,started=false,nearGarage=false;
+// Multiplayer state: the public server relays player positions to everyone in this city.
+let networkSocket=null,networkId=null,networkPlayers={},networkCount=0,playerName='',nextNetworkSend=0,reconnectTimer=null;
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const carById=id=>cars.find(c=>c.id===id)||cars[0];
+function save(){safeStore.set({owned:[...owned],selected:selectedId});}
+function resize(){let dpr=Math.min(window.devicePixelRatio||1,2);canvas.width=Math.max(1,Math.floor(innerWidth*dpr));canvas.height=Math.max(1,Math.floor(innerHeight*dpr));ctx.setTransform(dpr,0,0,dpr,0,0);mini.width=280;mini.height=280;bigMap.width=1000;bigMap.height=620;}
+window.addEventListener('resize',resize);resize();
+function toast(msg){const el=$('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2200)}
+function roundRect(c,x,y,w,h,r,fill,stroke){c.beginPath();c.roundRect(x,y,w,h,r);if(fill){c.fillStyle=fill;c.fill()}if(stroke){c.strokeStyle=stroke;c.stroke()}}
+function seeded(n){let x=Math.sin(n*78.233+12.9898)*43758.5453;return x-Math.floor(x)}
+const buildings=[];
+function addBlock(x,y,w,h,kind='building',seed=1){buildings.push({x,y,w,h,kind,seed});}
+// Decorative city blocks; fixed coordinates keep the city identical on every device.
+for(let row=0;row<4;row++) for(let col=0;col<5;col++){
+ let x=90+col*420, y=80+row*405;
+ if((x<1540&&x+285>850&&y<1190&&y+235>500) || (x<2040&&x+285>1660&&y<830&&y+235>560)) continue;
+ let w=220+seeded(row*13+col+2)*100, h=145+seeded(row*29+col+8)*90;
+ let kind=seeded(row*77+col*3)>.72?'shop':'building';addBlock(x,y,w,h,kind,row*10+col);
+}
+addBlock(90,1250,265,210,'shop',41);addBlock(425,1255,270,205,'building',42);addBlock(1680,1250,270,230,'shop',43);addBlock(2050,1250,260,210,'building',44);
+const trees=[];
+for(let i=0;i<145;i++){
+ let x=45+seeded(i+100)*2310, y=45+seeded(i+700)*1710;
+ let d=Math.hypot(x-CENTER.x,y-CENTER.y);
+ if(d<390 || (x>1615&&x<2020&&y>560&&y<860) || buildings.some(b=>x>b.x-24&&x<b.x+b.w+24&&y>b.y-24&&y<b.y+b.h+24)) continue;
+ if([480,800,1600,2050].some(rx=>Math.abs(x-rx)<78)||[350,650,1100,1450].some(ry=>Math.abs(y-ry)<72)) continue;
+ trees.push({x,y,r:9+seeded(i+1200)*9});
+}
+function drawRoads(c){
+ c.fillStyle='#71966f';c.fillRect(0,0,WORLD.w,WORLD.h);
+ // grass variation
+ for(let y=25;y<WORLD.h;y+=72)for(let x=25;x<WORLD.w;x+=78){let v=seeded(x+y*2);c.fillStyle=v>.55?'rgba(205,225,156,.075)':'rgba(22,72,53,.045)';c.fillRect(x+(v*15),y,28,17)}
+ // Main grid roads with curbs and asphalt
+ const vertical=[{x:480,w:102},{x:800,w:92},{x:1600,w:100},{x:2050,w:96}];
+ const horizontal=[{y:350,h:88},{y:650,h:88},{y:1100,h:94},{y:1450,h:90}];
+ c.fillStyle='#a9b5a1';vertical.forEach(r=>c.fillRect(r.x-r.w/2-7,0,r.w+14,WORLD.h));horizontal.forEach(r=>c.fillRect(0,r.y-r.h/2-7,WORLD.w,r.h+14));
+ c.fillStyle='#353d3e';vertical.forEach(r=>c.fillRect(r.x-r.w/2,0,r.w,WORLD.h));horizontal.forEach(r=>c.fillRect(0,r.y-r.h/2,WORLD.w,r.h));
+ c.save();c.strokeStyle='#e7d9a0';c.lineWidth=2;c.setLineDash([20,19]);vertical.forEach(r=>{c.beginPath();c.moveTo(r.x,0);c.lineTo(r.x,WORLD.h);c.stroke()});horizontal.forEach(r=>{c.beginPath();c.moveTo(0,r.y);c.lineTo(WORLD.w,r.y);c.stroke()});c.restore();
+ // Roundabout ring / access road
+ c.fillStyle='#aab6a0';c.beginPath();c.arc(CENTER.x,CENTER.y,355,0,Math.PI*2);c.fill();
+ c.fillStyle='#343c3e';c.beginPath();c.arc(CENTER.x,CENTER.y,346,0,Math.PI*2);c.fill();
+ c.fillStyle='#e4d69b';c.beginPath();c.arc(CENTER.x,CENTER.y,303,0,Math.PI*2);c.arc(CENTER.x,CENTER.y,282,0,Math.PI*2,true);c.fill('evenodd');
+ // East-west road to parking and southern avenue
+ c.fillStyle='#aab6a0';c.fillRect(1450,804,440,96);c.fillRect(1155,1130,90,340);
+ c.fillStyle='#343c3e';c.fillRect(1450,812,440,80);c.fillRect(1163,1130,74,340);
+ c.save();c.strokeStyle='#e4d69b';c.lineWidth=2;c.setLineDash([18,16]);c.beginPath();c.moveTo(1450,852);c.lineTo(1890,852);c.stroke();c.beginPath();c.moveTo(1200,1130);c.lineTo(1200,1465);c.stroke();c.restore();
+ // crosswalks at important intersections
+ for(const [x,y,verticalCross] of [[480,650,true],[800,1100,true],[1600,1100,true],[2050,650,true],[1200,1130,true],[1530,850,false]]){
+  c.fillStyle='#dce1d4';if(verticalCross){for(let i=-3;i<=3;i++)c.fillRect(x+i*13-3,y-47,6,15)}else{for(let i=-3;i<=3;i++)c.fillRect(x-50,y+i*12-3,16,6)}
+ }
+}
+function drawBuildings(c){
+ for(const b of buildings){
+  c.save();c.fillStyle='rgba(12,35,27,.28)';c.fillRect(b.x+8,b.y+10,b.w,b.h);
+  c.fillStyle='#99a99c';c.fillRect(b.x-5,b.y-5,b.w+10,b.h+10);
+  if(b.kind==='shop'){
+   c.fillStyle='#7d8c78';c.fillRect(b.x,b.y,b.w,b.h);c.fillStyle='#c4a56b';c.fillRect(b.x+5,b.y+5,b.w-10,22);c.fillStyle='#243936';c.fillRect(b.x+20,b.y+44,b.w-40,55);c.fillStyle='#78a99a';c.fillRect(b.x+26,b.y+50,b.w-52,42);
+  }else{
+   const palette=['#b9b5a0','#a9b5a6','#c8c7b5','#92a89e','#b1a68e'];c.fillStyle=palette[Math.floor(seeded(b.seed+3)*palette.length)];c.fillRect(b.x,b.y,b.w,b.h);
+   c.fillStyle='#687b70';c.fillRect(b.x+8,b.y+8,b.w-16,25);
+   c.fillStyle='#668d8b';for(let xx=b.x+18;xx<b.x+b.w-14;xx+=37){for(let yy=b.y+51;yy<b.y+b.h-20;yy+=35){c.fillRect(xx,yy,19,17);c.fillStyle='#d8e4c6';c.fillRect(xx+2,yy+2,2,13);c.fillStyle='#668d8b'}}
+  }
+  c.fillStyle='#e8dfc7';c.fillRect(b.x+b.w*.4,b.y+b.h-30,b.w*.2,30);c.restore();
+ }
+}
+function drawTrees(c){for(const t of trees){c.fillStyle='rgba(12,40,24,.24)';c.beginPath();c.ellipse(t.x+4,t.y+7,t.r*1.1,t.r*.82,0,0,Math.PI*2);c.fill();c.fillStyle='#67553b';c.fillRect(t.x-2,t.y,4,t.r*.9);c.fillStyle='#255c43';c.beginPath();c.arc(t.x,t.y-2,t.r,0,Math.PI*2);c.fill();c.fillStyle='#41825a';c.beginPath();c.arc(t.x-t.r*.27,t.y-t.r*.4,t.r*.58,0,Math.PI*2);c.fill();c.fillStyle='#a0bc72';c.beginPath();c.arc(t.x-t.r*.18,t.y-t.r*.56,2.1,0,Math.PI*2);c.fill()}}
+function drawPlaza(c){
+ c.save();
+ // inner green island and concentric stone paths
+ c.fillStyle='#d0cdb4';c.beginPath();c.arc(CENTER.x,CENTER.y,280,0,Math.PI*2);c.fill();
+ c.fillStyle='#9ebd84';c.beginPath();c.arc(CENTER.x,CENTER.y,265,0,Math.PI*2);c.fill();
+ c.strokeStyle='#e9e2c9';c.lineWidth=4;c.beginPath();c.arc(CENTER.x,CENTER.y,222,0,Math.PI*2);c.stroke();
+ // spokes / paved radial paths
+ c.strokeStyle='#d9d2b7';c.lineWidth=13;for(let a=0;a<Math.PI*2;a+=Math.PI/4){c.beginPath();c.moveTo(CENTER.x+Math.cos(a)*92,CENTER.y+Math.sin(a)*92);c.lineTo(CENTER.x+Math.cos(a)*244,CENTER.y+Math.sin(a)*244);c.stroke()}
+ c.fillStyle='#d9d0b3';c.beginPath();c.arc(CENTER.x,CENTER.y,106,0,Math.PI*2);c.fill();
+ c.fillStyle='#b0a17e';c.beginPath();c.arc(CENTER.x,CENTER.y,80,0,Math.PI*2);c.fill();
+ c.fillStyle='#6d756a';c.fillRect(CENTER.x-49,CENTER.y+18,98,30);c.fillStyle='#8d9487';c.fillRect(CENTER.x-41,CENTER.y-4,82,27);c.fillStyle='#c6b897';c.fillRect(CENTER.x-33,CENTER.y-15,66,14);
+ // stylized bronze equestrian-archer monument, simple and non-photorealistic
+ c.fillStyle='#6f5130';c.beginPath();c.ellipse(CENTER.x+1,CENTER.y-35,34,12,-.1,0,Math.PI*2);c.fill();c.fillRect(CENTER.x-17,CENTER.y-49,6,23);c.fillRect(CENTER.x+12,CENTER.y-47,6,21);
+ c.beginPath();c.arc(CENTER.x-2,CENTER.y-68,10,0,Math.PI*2);c.fill();c.fillStyle='#99723c';c.beginPath();c.moveTo(CENTER.x-6,CENTER.y-59);c.lineTo(CENTER.x-22,CENTER.y-38);c.lineTo(CENTER.x+8,CENTER.y-36);c.lineTo(CENTER.x+9,CENTER.y-59);c.closePath();c.fill();
+ c.strokeStyle='#654521';c.lineWidth=4;c.beginPath();c.moveTo(CENTER.x+3,CENTER.y-58);c.lineTo(CENTER.x+32,CENTER.y-79);c.stroke();c.beginPath();c.arc(CENTER.x+35,CENTER.y-80,12,-1.9,1.45);c.stroke();
+ // flower beds and trees around ring
+ for(let i=0;i<24;i++){let a=i*Math.PI*2/24,x=CENTER.x+Math.cos(a)*238,y=CENTER.y+Math.sin(a)*238;c.fillStyle=i%2?'#e6d77c':'#d58d76';c.beginPath();c.arc(x,y,3.5,0,Math.PI*2);c.fill()}
+ for(let i=0;i<18;i++){let a=i*Math.PI*2/18,x=CENTER.x+Math.cos(a)*253,y=CENTER.y+Math.sin(a)*253;c.fillStyle='#225d43';c.beginPath();c.arc(x,y,7,0,Math.PI*2);c.fill();c.fillStyle='#70a76b';c.beginPath();c.arc(x-2,y-3,3.5,0,Math.PI*2);c.fill()}
+ c.restore();
+}
+function drawParking(c){
+ c.save();c.fillStyle='#aab6a0';c.fillRect(1635,560,390,236);c.fillStyle='#4b5553';c.fillRect(1643,568,374,220);
+ c.fillStyle='#dce1cd';c.font='bold 18px Tahoma';c.textAlign='center';c.fillText('P  PARKING',1829,597);
+ c.strokeStyle='#d9d8c4';c.lineWidth=3;for(let i=0;i<6;i++){let x=1662+i*57;c.beginPath();c.moveTo(x,614);c.lineTo(x,773);c.stroke()}
+ c.fillStyle='#74d6a7';c.font='bold 12px Tahoma';c.fillText('پارکینگ آرش',1828,777);
+ // decorative parked cars
+ for(let i=0;i<4;i++){drawCarShape(c,1684+i*76,664,Math.PI/2,{color:['#c3c8bd','#668c9b','#d0a451','#7e9e84'][i]},.42)}
+ // entrance pad and locator
+ c.fillStyle='#aab6a0';c.fillRect(1740,788,82,36);c.fillStyle='#343c3e';c.fillRect(1747,790,68,33);c.strokeStyle='#75e4b2';c.lineWidth=3;c.setLineDash([6,5]);c.strokeRect(1738,784,86,42);c.setLineDash([]);
+ c.restore();
+}
+function drawCarShape(c,x,y,angle,car,scale=1){
+ c.save();c.translate(x,y);c.rotate(angle);c.scale(scale,scale);
+ c.fillStyle='rgba(0,0,0,.35)';c.beginPath();c.ellipse(2,5,31,17,0,0,Math.PI*2);c.fill();
+ c.fillStyle='#202829';roundRect(c,-27,-17,54,34,9,'#202829');
+ c.fillStyle=car.color||'#d85c4f';roundRect(c,-25,-15,50,30,8,c.fillStyle);
+ c.fillStyle='#273a40';roundRect(c,-13,-12,27,24,6,'#273a40');
+ c.fillStyle='#64878a';c.beginPath();c.moveTo(-10,-10);c.lineTo(7,-10);c.lineTo(11,-4);c.lineTo(-10,-4);c.closePath();c.fill();c.beginPath();c.moveTo(-10,4);c.lineTo(11,4);c.lineTo(7,10);c.lineTo(-10,10);c.closePath();c.fill();
+ c.fillStyle='#f0d78e';c.fillRect(21,-10,4,7);c.fillRect(21,4,4,7);c.fillStyle='#d54d43';c.fillRect(-25,-10,3,7);c.fillRect(-25,4,3,7);
+ c.fillStyle='#1c2527';c.fillRect(-16,-19,10,4);c.fillRect(8,-19,10,4);c.fillRect(-16,15,10,4);c.fillRect(8,15,10,4);
+ c.restore();
+}
+function drawPlayer(c){
+ if(player.driving&&vehicle){drawCarShape(c,player.x,player.y,player.angle,carById(vehicle.id),.9);return;}
+ const bob=Math.sin(performance.now()/120)*1.2;
+ c.save();c.translate(player.x,player.y+bob);
+ c.fillStyle='rgba(0,0,0,.28)';c.beginPath();c.ellipse(1,13,15,8,0,0,Math.PI*2);c.fill();
+ c.fillStyle='#24302d';c.beginPath();c.arc(0,0,13,0,Math.PI*2);c.fill();
+ c.fillStyle='#5dc7a0';c.beginPath();c.ellipse(0,1,8.5,10,0,0,Math.PI*2);c.fill();
+ c.fillStyle='#d9b08c';c.beginPath();c.arc(0,-10,6.2,0,Math.PI*2);c.fill();
+ c.fillStyle='#2c3938';c.beginPath();c.arc(0,-12,6.5,Math.PI,Math.PI*2);c.fill();
+ c.strokeStyle='#dbd8bd';c.lineWidth=2;c.beginPath();c.moveTo(0,2);c.lineTo(Math.cos(player.angle)*11,2+Math.sin(player.angle)*9);c.stroke();
+ c.strokeStyle='#f2f7e9';c.lineWidth=1.5;c.beginPath();c.arc(0,0,17,0,Math.PI*2);c.stroke();c.restore();
+}
+function buildWorld(){
+ worldCanvas.width=WORLD.w;worldCanvas.height=WORLD.h;const wc=worldCanvas.getContext('2d');
+ drawRoads(wc);drawBuildings(wc);drawTrees(wc);drawPlaza(wc);drawParking(wc);
+ wc.save();wc.textAlign='center';wc.font='bold 22px Tahoma';wc.fillStyle='#18382b';wc.fillText('میدان آرش',CENTER.x,CENTER.y+167);wc.font='bold 11px Tahoma';wc.fillStyle='#dbe8d6';wc.fillText('ARASH SQUARE',CENTER.x,CENTER.y+182);wc.restore();
+ wc.fillStyle='#e2d5ac';roundRect(wc,1510,922,90,30,5,'#e1dbbf');wc.fillStyle='#33453b';wc.font='bold 10px Tahoma';wc.textAlign='center';wc.fillText('مرکز شهر',1555,941);
+}
+function drawRemotePlayer(c,other){
+ if(!other||!Number.isFinite(other.x)||!Number.isFinite(other.y))return;
+ c.save();c.translate(other.x,other.y);
+ if(other.driving){
+  const car=carById(other.vehicleId);drawCarShape(c,0,0,Number.isFinite(other.angle)?other.angle:0,car,.82);
+ }else{
+  c.fillStyle='rgba(0,0,0,.27)';c.beginPath();c.ellipse(1,12,13,7,0,0,Math.PI*2);c.fill();
+  c.fillStyle='#4a2524';c.beginPath();c.arc(0,0,12,0,Math.PI*2);c.fill();
+  c.fillStyle='#ff937a';c.beginPath();c.ellipse(0,1,8,10,0,0,Math.PI*2);c.fill();
+  c.fillStyle='#f0c7a9';c.beginPath();c.arc(0,-10,6,0,Math.PI*2);c.fill();
+  c.strokeStyle='#fff3ee';c.lineWidth=1.5;c.beginPath();c.arc(0,0,16,0,Math.PI*2);c.stroke();
+ }
+ const label=String(other.name||'شهروند').slice(0,18);c.font='bold 12px Tahoma';c.textAlign='center';c.textBaseline='bottom';
+ const width=Math.min(168,Math.max(52,c.measureText(label).width+16));
+ c.fillStyle='rgba(7,18,16,.88)';c.beginPath();c.roundRect(-width/2,-42,width,21,7);c.fill();
+ c.strokeStyle='#ff937a';c.lineWidth=1;c.stroke();c.fillStyle='#fff4ed';c.fillText(label,0,-26,150);
+ c.restore();
+}
+function updateNetworkStatus(){
+ const el=$('onlineStatus');if(!el)return;
+ if(networkSocket&&networkSocket.readyState===WebSocket.OPEN){el.textContent='● آنلاین · '+Math.max(1,networkCount)+' نفر';el.style.color='#8ae5bc'}
+ else if(networkSocket&&networkSocket.readyState===WebSocket.CONNECTING){el.textContent='● در حال اتصال…';el.style.color='#f4c66b'}
+ else {el.textContent=started?'● تلاش برای اتصال…':'چندنفره آماده';el.style.color='#a7b9b4'}
+}
+function sendNetworkState(force=false){
+ if(!started||!networkSocket||networkSocket.readyState!==WebSocket.OPEN)return;
+ const now=performance.now();if(!force&&now<nextNetworkSend)return;nextNetworkSend=now+100;
+ try{networkSocket.send(JSON.stringify({type:'state',name:playerName,x:player.x,y:player.y,angle:player.angle,driving:!!player.driving,vehicleId:vehicle?vehicle.id:selectedId}))}catch(_){ }
+}
+function connectOnline(){
+ if(!started)return;
+ if(location.protocol!=='http:'&&location.protocol!=='https:'){toast('برای بازی آنلاین باید با لینک سایت رانفلر وارد شوی، نه با باز کردن مستقیم فایل.');return}
+ if(networkSocket&&(networkSocket.readyState===WebSocket.OPEN||networkSocket.readyState===WebSocket.CONNECTING))return;
+ updateNetworkStatus();
+ const scheme=location.protocol==='https:'?'wss:':'ws:';
+ let ws;
+ try{ws=new WebSocket(scheme+'//'+location.host+'/ws')}catch(_){toast('ساخت اتصال آنلاین انجام نشد. لینک سایت را بررسی کن.');return}
+ networkSocket=ws;
+ ws.addEventListener('open',()=>{if(networkSocket!==ws)return;updateNetworkStatus();sendNetworkState(true);});
+ ws.addEventListener('message',event=>{
+  let data;try{data=JSON.parse(event.data)}catch(_){return}
+  if(data.type==='welcome'){networkId=String(data.id||'');if(Number.isFinite(Number(data.x))&&Number.isFinite(Number(data.y))){player.x=clamp(Number(data.x),35,WORLD.w-35);player.y=clamp(Number(data.y),35,WORLD.h-35);camera.x=player.x;camera.y=player.y}sendNetworkState(true);return}
+  if(data.type==='error'){toast(String(data.message||'خطای سرور').slice(0,120));return}
+  if(data.type==='players'){
+   networkCount=Number.isFinite(data.count)?data.count:0;const next={};
+   if(Array.isArray(data.players))for(const other of data.players){if(!other||String(other.id)===networkId)continue;next[String(other.id)]={id:String(other.id),name:String(other.name||'شهروند').slice(0,18),x:Number(other.x),y:Number(other.y),angle:Number(other.angle)||0,driving:!!other.driving,vehicleId:String(other.vehicleId||'hatch')}}
+   networkPlayers=next;updateNetworkStatus();
+  }
+ });
+ ws.addEventListener('error',()=>{if(networkSocket===ws){updateNetworkStatus()}});
+ ws.addEventListener('close',()=>{
+  if(networkSocket===ws)networkSocket=null;networkPlayers={};networkCount=0;updateNetworkStatus();
+  if(started&&!reconnectTimer){reconnectTimer=setTimeout(()=>{reconnectTimer=null;connectOnline()},2500)}
+ });
+}
+function drawWorld(){
+ const vw=innerWidth,vh=innerHeight;
+ camera.x+=(player.x-camera.x)*.14;camera.y+=(player.y-camera.y)*.14;
+ // Other players are rendered in the same world coordinates as the local player.
+ const left=clamp(camera.x-vw/2,0,Math.max(0,WORLD.w-vw)),top=clamp(camera.y-vh/2,0,Math.max(0,WORLD.h-vh));
+ ctx.clearRect(0,0,vw,vh);ctx.drawImage(worldCanvas,left,top,vw,vh,0,0,vw,vh);ctx.save();ctx.translate(-left,-top);
+ for(const other of Object.values(networkPlayers))drawRemotePlayer(ctx,other);
+ drawPlayer(ctx);
+ if(nearGarage&&!player.driving){ctx.save();ctx.strokeStyle='#73e5b3';ctx.lineWidth=3;ctx.setLineDash([8,6]);ctx.beginPath();ctx.arc(GARAGE.x,GARAGE.y,48,0,Math.PI*2);ctx.stroke();ctx.restore()}
+ ctx.restore();
+}
+function drawMap(c,w,h,full=false){
+ c.clearRect(0,0,w,h);c.fillStyle='#527e59';c.fillRect(0,0,w,h);
+ // fit all world bounds with margins
+ const pad=full?36:12, scale=Math.min((w-2*pad)/WORLD.w,(h-2*pad)/WORLD.h),ox=(w-WORLD.w*scale)/2,oy=(h-WORLD.h*scale)/2;
+ c.save();c.translate(ox,oy);c.scale(scale,scale);
+ c.fillStyle='#73976b';c.fillRect(0,0,WORLD.w,WORLD.h);
+ c.fillStyle='#394344';[480,800,1600,2050].forEach(x=>c.fillRect(x-49,0,98,WORLD.h));[350,650,1100,1450].forEach(y=>c.fillRect(0,y-44,WORLD.w,88));
+ c.beginPath();c.arc(CENTER.x,CENTER.y,350,0,Math.PI*2);c.fill();c.fillStyle='#9dba80';c.beginPath();c.arc(CENTER.x,CENTER.y,265,0,Math.PI*2);c.fill();c.strokeStyle='#d5cdb0';c.lineWidth=12;c.beginPath();c.arc(CENTER.x,CENTER.y,222,0,Math.PI*2);c.stroke();
+ c.fillStyle='#a9b8a4';c.fillRect(1635,560,390,236);c.fillStyle='#3b4948';c.fillRect(1643,568,374,220);c.strokeStyle='#d8e0cf';c.lineWidth=3;for(let i=0;i<6;i++){let x=1662+i*57;c.beginPath();c.moveTo(x,614);c.lineTo(x,773);c.stroke()}
+ c.fillStyle='#f4c66b';c.beginPath();c.arc(CENTER.x,CENTER.y,24,0,Math.PI*2);c.fill();c.fillStyle='#75e4b2';c.fillRect(GARAGE.x-30,GARAGE.y-14,60,28);
+ for(const b of buildings){c.fillStyle=b.kind==='shop'?'#c5ac79':'#b3c0b2';c.fillRect(b.x,b.y,b.w,b.h)}
+ for(const other of Object.values(networkPlayers)){if(!Number.isFinite(other.x)||!Number.isFinite(other.y))continue;c.fillStyle='#ff937a';c.beginPath();c.arc(other.x,other.y,full?18:27,0,Math.PI*2);c.fill();c.strokeStyle='#fff0e8';c.lineWidth=full?5:7;c.stroke()}
+ c.fillStyle='#62d6ff';c.beginPath();c.arc(player.x,player.y,full?22:24,0,Math.PI*2);c.fill();c.strokeStyle='#e4f9ff';c.lineWidth=full?8:6;c.stroke();
+ c.restore();
+ if(full){c.font='bold 24px Tahoma';c.textAlign='center';c.fillStyle='#f5db95';c.fillText('میدان آرش',w*(CENTER.x/WORLD.w),h*(CENTER.y/WORLD.h)+52);c.fillStyle='#a3f4cc';c.fillText('پارکینگ',w*(GARAGE.x/WORLD.w),h*(GARAGE.y/WORLD.h)-22)}
+}
+function updateHUD(){
+ $('energyFill').style.width=player.energy+'%';$('energyText').textContent=Math.round(player.energy)+'٪';
+ $('status').textContent=player.driving?'🚘 در حال رانندگی · '+carById(vehicle.id).name:'● پیاده‌روی در شهر';
+ $('garageBtn').hidden=player.driving||!nearGarage;$('exitCarBtn').hidden=!player.driving;
+ if(player.driving){$('hint').textContent='جوی‌استیک را به سمت دلخواه بکش؛ برای پیاده‌شدن دکمه سبز را بزن.'}
+ else if(nearGarage){$('hint').textContent='به پارکینگ رسیدی! روی «پارکینگ» بزن تا ماشین بخری.'}
+ else if(sprint){$('hint').textContent='دویدن فعاله؛ انرژی کم می‌شود و بعد از رها کردن برمی‌گردد.'}
+ else {$('hint').textContent='با جوی‌استیک حرکت کن؛ نزدیک پارکینگ که شدی دکمه‌اش ظاهر می‌شود.'}
+}
+function collidesBuildings(x,y,r){
+ for(const b of buildings){const nx=clamp(x,b.x,b.x+b.w),ny=clamp(y,b.y,b.y+b.h);if(Math.hypot(x-nx,y-ny)<r)return true;}return false;
+}
+function update(dt){
+ const modalOpen=!$('welcome').hidden||!$('garageOverlay').hidden||!$('mapOverlay').hidden;
+ if(modalOpen){joy.x=0;joy.y=0;updateHUD();return;}
+ const oldX=player.x,oldY=player.y;
+ let dx=joy.x,dy=joy.y;
+ if(keys.has('ArrowLeft')||keys.has('a')||keys.has('A'))dx-=1;
+ if(keys.has('ArrowRight')||keys.has('d')||keys.has('D'))dx+=1;
+ if(keys.has('ArrowUp')||keys.has('w')||keys.has('W'))dy-=1;
+ if(keys.has('ArrowDown')||keys.has('s')||keys.has('S'))dy+=1;
+ let len=Math.hypot(dx,dy);if(len>1){dx/=len;dy/=len}
+ const moving=len>.04;
+ if(player.driving&&vehicle){
+  const car=carById(vehicle.id);let targetAngle=Math.atan2(dy,dx);
+  if(moving){player.angle=targetAngle;const speed=car.speed;player.x+=dx*speed*dt;player.y+=dy*speed*dt;}
+ }else{
+  let speed=140;
+  if(sprint&&player.energy>0&&moving){speed=218;player.energy=Math.max(0,player.energy-28*dt)}else{player.energy=Math.min(100,player.energy+17*dt)}
+  if(moving){player.angle=Math.atan2(dy,dx);player.x+=dx*speed*dt;player.y+=dy*speed*dt;}
+ }
+ player.x=clamp(player.x,35,WORLD.w-35);player.y=clamp(player.y,35,WORLD.h-35);
+ const radius=player.driving?20:12;
+ if(collidesBuildings(player.x,oldY,radius))player.x=oldX;
+ if(collidesBuildings(player.x,player.y,radius))player.y=oldY;
+ nearGarage=distance(player,GARAGE)<105;
+ updateHUD();
+}
+function renderCars(){const list=$('carList');list.innerHTML='';cars.forEach(car=>{
+ const isOwned=owned.has(car.id),isSelected=selectedId===car.id;
+ const card=document.createElement('div');card.className='car-card';
+ const art=document.createElement('div');art.className='car-art';const cc=document.createElement('canvas');cc.width=232;cc.height=144;art.appendChild(cc);drawCarShape(cc.getContext('2d'),116,72,-Math.PI/2,car,1.1);
+ const name=document.createElement('div');name.className='car-name';name.textContent=car.name;
+ const desc=document.createElement('div');desc.className='car-desc';desc.textContent=car.desc;
+ const foot=document.createElement('div');foot.className='car-foot';foot.innerHTML='<span>حداکثر سرعت</span><b>'+Math.round(car.speed/3.6)+' km/h</b>';
+ const btn=document.createElement('button');btn.className='car-btn '+(isOwned?'use':'buy');
+ if(!isOwned)btn.textContent='◈ خرید با سکه بی‌نهایت';else if(isSelected)btn.textContent=player.driving&&vehicle&&vehicle.id===car.id?'در حال استفاده ✓':'سوار شو ✓';else btn.textContent='انتخاب و سوار شو';
+ btn.addEventListener('click',()=>{
+  if(!owned.has(car.id)){owned.add(car.id);selectedId=car.id;save();renderCars();toast(car.name+' خریداری شد!');return;}
+  selectedId=car.id;save();vehicle={id:car.id};player.driving=true;
+  // Place the vehicle just outside parking before allowing free driving.
+  player.x=GARAGE.x+80;player.y=GARAGE.y+45;player.angle=0;nearGarage=false;
+  $('garageOverlay').hidden=true;toast('سوار '+car.name+' شدی! با جوی‌استیک بران.');updateHUD();
+ });
+ if(isOwned&&isSelected&&player.driving&&vehicle&&vehicle.id===car.id){btn.textContent='در حال رانندگی';btn.disabled=true}
+ card.append(art,name,desc,foot,btn);list.appendChild(card);
+ });}
+function openGarage(){if(player.driving){toast('اول از ماشین پیاده شو.');return}if(!nearGarage){toast('برای ورود به پارکینگ نزدیک‌تر شو.');return}renderCars();$('garageOverlay').hidden=false}
+function openMap(){$('mapOverlay').hidden=false;drawMap(bctx,bigMap.width,bigMap.height,true)}
+// Touch joystick: pointer events work with touchscreen, stylus and mouse.
+const joyEl=$('joy'),stick=$('stick');
+function setJoyFromEvent(e){const r=joyEl.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let dx=e.clientX-cx,dy=e.clientY-cy;const max=r.width*.34,len=Math.hypot(dx,dy);if(len>max){dx=dx/len*max;dy=dy/len*max}joy.x=dx/max;joy.y=dy/max;stick.style.transform='translate('+dx+'px,'+dy+'px)'}
+joyEl.addEventListener('pointerdown',e=>{e.preventDefault();joy.active=true;joy.pointer=e.pointerId;joyEl.setPointerCapture(e.pointerId);setJoyFromEvent(e)});
+joyEl.addEventListener('pointermove',e=>{if(joy.active&&e.pointerId===joy.pointer){e.preventDefault();setJoyFromEvent(e)}});
+function releaseJoy(e){if(!joy.active)return;if(e&&joy.pointer!==null&&e.pointerId!==joy.pointer)return;joy.active=false;joy.pointer=null;joy.x=0;joy.y=0;stick.style.transform='translate(0,0)'}
+joyEl.addEventListener('pointerup',releaseJoy);joyEl.addEventListener('pointercancel',releaseJoy);joyEl.addEventListener('lostpointercapture',()=>releaseJoy(null));
+window.addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key))e.preventDefault();keys.add(e.key);if(e.key.toLowerCase()==='e'){if(nearGarage&&!player.driving)openGarage()}if(e.key==='Escape'){['garageOverlay','mapOverlay','welcome'].forEach(id=>$(id).hidden=true)}});
+window.addEventListener('keyup',e=>keys.delete(e.key));
+window.addEventListener('blur',()=>{keys.clear();sprint=false;releaseJoy(null)});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){keys.clear();sprint=false;releaseJoy(null)}});
+$('sprintBtn').addEventListener('pointerdown',e=>{e.preventDefault();sprint=true});['pointerup','pointercancel','pointerleave'].forEach(ev=>$('sprintBtn').addEventListener(ev,()=>sprint=false));
+$('startBtn').addEventListener('click',()=>{playerName=String($('playerNameInput').value||'').replace(/\s+/g,' ').trim().slice(0,18);if(!playerName)playerName='شهروند-'+String(Math.floor(1000+Math.random()*9000));try{localStorage.setItem('arashCityName',playerName)}catch(_){}$('welcome').hidden=true;started=true;connectOnline();toast('به آرش سیتی خوش آمدی، '+playerName+'!');});
+try{$('playerNameInput').value=localStorage.getItem('arashCityName')||''}catch(_){}
+$('garageBtn').addEventListener('click',openGarage);
+$('exitCarBtn').addEventListener('click',()=>{if(!player.driving)return;player.driving=false;vehicle=null;player.x-=Math.cos(player.angle)*42;player.y-=Math.sin(player.angle)*42;player.x=clamp(player.x,35,WORLD.w-35);player.y=clamp(player.y,35,WORLD.h-35);toast('از ماشین پیاده شدی.');updateHUD()});
+$('mapBtn').addEventListener('click',openMap);$('miniWrap').addEventListener('click',openMap);
+document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',()=>$(btn.dataset.close).hidden=true));
+$('mapOverlay').addEventListener('click',e=>{if(e.target===$('mapOverlay'))$('mapOverlay').hidden=true});$('garageOverlay').addEventListener('click',e=>{if(e.target===$('garageOverlay'))$('garageOverlay').hidden=true});
+function loop(now){const dt=Math.min(.04,Math.max(0,(now-lastTime)/1000));lastTime=now;update(dt);sendNetworkState();drawWorld();drawMap(mctx,mini.width,mini.height,false);if(!$('mapOverlay').hidden)drawMap(bctx,bigMap.width,bigMap.height,true);requestAnimationFrame(loop)}
+// boot in a stable, stationary state. The welcome panel can be dismissed at any time.
+buildWorld();renderCars();updateHUD();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
