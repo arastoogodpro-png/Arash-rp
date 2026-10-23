@@ -95,6 +95,7 @@ let vehicle=null, camera={x:player.x,y:player.y}, keys=new Set(), joy={x:0,y:0,a
 let lastTime=performance.now(),toastTimer=null,started=false,nearGarage=false;
 // Multiplayer state: the public server relays player positions to everyone in this city.
 let networkSocket=null,networkId=null,networkPlayers={},networkCount=0,playerName='',nextNetworkSend=0,reconnectTimer=null,lastPing=0,pingSentAt=0,nextPingAt=0;
+let httpMode=false,httpSessionId=null,httpBusy=false,httpRetryTimer=null,connectionAttemptTimer=null,connectFailures=0,networkIssue='',transportName='';
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const carById=id=>cars.find(c=>c.id===id)||cars[0];
@@ -232,53 +233,109 @@ function drawRemotePlayer(c,other){
   c.fillStyle='#f0c7a9';c.beginPath();c.arc(0,-10,6,0,Math.PI*2);c.fill();
   c.strokeStyle='#fff3ee';c.lineWidth=1.5;c.beginPath();c.arc(0,0,16,0,Math.PI*2);c.stroke();
  }
- const label=String(other.name||'شهروند').slice(0,18);c.font='bold 12px Tahoma';c.textAlign='center';c.textBaseline='bottom';
- const width=Math.min(168,Math.max(52,c.measureText(label).width+16));
+ const name=String(other.name||'شهروند').slice(0,18);
+ const otherPing=Number(other.pingMs);
+ const label=name+(Number.isFinite(otherPing)&&otherPing>0?' · '+Math.round(otherPing)+' ms':'');c.font='bold 11px Tahoma';c.textAlign='center';c.textBaseline='bottom';
+ const width=Math.min(196,Math.max(52,c.measureText(label).width+16));
  c.fillStyle='rgba(7,18,16,.88)';c.beginPath();c.roundRect(-width/2,-42,width,21,7);c.fill();
- c.strokeStyle='#ff937a';c.lineWidth=1;c.stroke();c.fillStyle='#fff4ed';c.fillText(label,0,-26,150);
+ c.strokeStyle='#ff937a';c.lineWidth=1;c.stroke();c.fillStyle='#fff4ed';c.fillText(label,0,-26,178);
  c.restore();
 }
 function updateNetworkStatus(){
  const el=$('onlineStatus');if(!el)return;
- if(networkSocket&&networkSocket.readyState===WebSocket.OPEN){el.textContent='● آنلاین · '+Math.max(1,networkCount)+' نفر'+(lastPing?' · '+lastPing+' ms':'');el.style.color=lastPing>250?'#f4c66b':'#8ae5bc'}
- else if(networkSocket&&networkSocket.readyState===WebSocket.CONNECTING){el.textContent='● در حال اتصال…';el.style.color='#f4c66b'}
- else {el.textContent=started?'● تلاش برای اتصال…':'چندنفره آماده';el.style.color='#a7b9b4'}
+ const pingText=lastPing>0?('پینگ '+lastPing+' ms'):'پینگ: در حال اندازه‌گیری…';
+ if(httpMode&&httpSessionId){el.textContent='● آنلاین · '+Math.max(1,networkCount)+' نفر · '+pingText;el.style.color=lastPing>250?'#f4c66b':'#8ae5bc';return}
+ if(networkSocket&&networkSocket.readyState===WebSocket.OPEN){el.textContent='● آنلاین · '+Math.max(1,networkCount)+' نفر · '+pingText;el.style.color=lastPing>250?'#f4c66b':'#8ae5bc'}
+ else if(networkSocket&&networkSocket.readyState===WebSocket.CONNECTING){el.textContent='● در حال اتصال به سرور…';el.style.color='#f4c66b'}
+ else if(networkIssue){el.textContent='● اتصال: '+networkIssue;el.style.color='#ff9b8e'}
+ else {el.textContent=started?'● در حال تلاش برای اتصال…':'چندنفره آماده';el.style.color='#a7b9b4'}
+}
+function applyPlayerSnapshot(data){
+ networkCount=Number.isFinite(Number(data.count))?Number(data.count):0;
+ const next={};
+ if(Array.isArray(data.players))for(const other of data.players){
+  if(!other||String(other.id)===String(networkId))continue;
+  const id=String(other.id),old=networkPlayers[id],tx=Number(other.x),ty=Number(other.y);
+  if(!Number.isFinite(tx)||!Number.isFinite(ty))continue;
+  next[id]={id,name:String(other.name||'شهروند').slice(0,18),x:old&&Number.isFinite(old.x)?old.x:tx,y:old&&Number.isFinite(old.y)?old.y:ty,targetX:tx,targetY:ty,angle:Number(other.angle)||0,driving:!!other.driving,vehicleId:String(other.vehicleId||'hatch'),pingMs:Number(other.pingMs)||0};
+ }
+ networkPlayers=next;updateNetworkStatus();
 }
 function sendNetworkState(force=false){
- if(!started||!networkSocket||networkSocket.readyState!==WebSocket.OPEN)return;
+ if(!started||httpMode||!networkSocket||networkSocket.readyState!==WebSocket.OPEN)return;
  const now=performance.now();if(!force&&now<nextNetworkSend)return;nextNetworkSend=now+100;
- try{networkSocket.send(JSON.stringify({type:'state',name:playerName,x:player.x,y:player.y,angle:player.angle,driving:!!player.driving,vehicleId:vehicle?vehicle.id:selectedId}))}catch(_){ }
+ try{networkSocket.send(JSON.stringify({type:'state',name:playerName,x:player.x,y:player.y,angle:player.angle,driving:!!player.driving,vehicleId:vehicle?vehicle.id:selectedId,pingMs:lastPing}))}catch(_){ }
+}
+async function startHttpFallback(){
+ if(!started||httpMode)return;
+ httpMode=true;transportName='HTTP';networkIssue='در حال راه‌اندازی اتصال جایگزین';
+ const oldSocket=networkSocket;networkSocket=null;
+ if(connectionAttemptTimer){clearTimeout(connectionAttemptTimer);connectionAttemptTimer=null}
+ if(oldSocket){try{oldSocket.close()}catch(_){}}
+ updateNetworkStatus();toast('اتصال WebSocket برقرار نشد؛ روش جایگزین را امتحان می‌کنم.');
+ await httpJoin();
+}
+async function httpJoin(){
+ if(!started||!httpMode||httpSessionId)return;
+ try{
+  const t0=performance.now();
+  const response=await fetch('/api/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:playerName}),cache:'no-store',credentials:'same-origin'});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||!data.id)throw new Error(data.error||('HTTP '+response.status));
+  lastPing=Math.max(1,Math.round(performance.now()-t0));
+  httpSessionId=String(data.id);networkId=httpSessionId;networkIssue='';
+  if(Number.isFinite(Number(data.x))&&Number.isFinite(Number(data.y))){player.x=clamp(Number(data.x),35,WORLD.w-35);player.y=clamp(Number(data.y),35,WORLD.h-35);camera.x=player.x;camera.y=player.y}
+  networkCount=1;updateNetworkStatus();httpSyncLoop();
+ }catch(err){
+  networkIssue='اتصال HTTP ناموفق';updateNetworkStatus();
+  if(started&&httpMode&&!httpRetryTimer)httpRetryTimer=setTimeout(()=>{httpRetryTimer=null;httpJoin()},2500);
+ }
+}
+async function httpSyncLoop(){
+ if(!started||!httpMode||!httpSessionId||httpBusy)return;
+ httpBusy=true;const t0=performance.now();
+ try{
+  const response=await fetch('/api/tick',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:httpSessionId,name:playerName,x:player.x,y:player.y,angle:player.angle,driving:!!player.driving,vehicleId:vehicle?vehicle.id:selectedId,pingMs:lastPing}),cache:'no-store',credentials:'same-origin'});
+  const data=await response.json().catch(()=>({}));
+  if(response.status===404){httpSessionId=null;networkId=null;networkPlayers={};networkIssue='اتصال دوباره';updateNetworkStatus();httpBusy=false;httpJoin();return}
+  if(!response.ok||!Array.isArray(data.players))throw new Error(data.error||('HTTP '+response.status));
+  lastPing=Math.max(1,Math.round(performance.now()-t0));networkIssue='';applyPlayerSnapshot(data);
+ }catch(err){networkIssue='نوسان اتصال';updateNetworkStatus()}
+ finally{httpBusy=false;if(started&&httpMode&&httpSessionId)setTimeout(httpSyncLoop,160)}
 }
 function connectOnline(){
- if(!started)return;
- if(location.protocol!=='http:'&&location.protocol!=='https:'){toast('برای بازی آنلاین باید با لینک سایت رانفلر وارد شوی، نه با باز کردن مستقیم فایل.');return}
+ if(!started||httpMode)return;
+ if(location.protocol!=='http:'&&location.protocol!=='https:'){networkIssue='لینک سایت را باز کن';updateNetworkStatus();toast('برای بازی آنلاین باید لینک سایت رانفلر را باز کنی، نه فایل HTML را.');return}
  if(networkSocket&&(networkSocket.readyState===WebSocket.OPEN||networkSocket.readyState===WebSocket.CONNECTING))return;
  updateNetworkStatus();
  const scheme=location.protocol==='https:'?'wss:':'ws:';
  let ws;
- try{ws=new WebSocket(scheme+'//'+location.host+'/ws')}catch(_){toast('ساخت اتصال آنلاین انجام نشد. لینک سایت را بررسی کن.');return}
- networkSocket=ws;
- ws.addEventListener('open',()=>{if(networkSocket!==ws)return;lastPing=0;nextPingAt=0;updateNetworkStatus();sendNetworkState(true);});
+ try{ws=new WebSocket(scheme+'//'+location.host+'/ws')}
+ catch(_){startHttpFallback();return}
+ networkSocket=ws;let opened=false;
+ if(connectionAttemptTimer)clearTimeout(connectionAttemptTimer);
+ connectionAttemptTimer=setTimeout(()=>{if(!opened&&networkSocket===ws)startHttpFallback()},4500);
+ ws.addEventListener('open',()=>{
+  if(networkSocket!==ws)return;opened=true;connectFailures=0;transportName='WebSocket';networkIssue='';
+  if(connectionAttemptTimer){clearTimeout(connectionAttemptTimer);connectionAttemptTimer=null}
+  lastPing=0;nextPingAt=0;updateNetworkStatus();sendNetworkState(true);
+ });
  ws.addEventListener('message',event=>{
   let data;try{data=JSON.parse(event.data)}catch(_){return}
-  if(data.type==='pong'){if(Number(data.t)===pingSentAt){lastPing=Math.max(0,Math.round(performance.now()-pingSentAt));updateNetworkStatus()}return}
+  if(data.type==='pong'){const sent=Number(data.t);if(Number.isFinite(sent)){lastPing=Math.max(1,Math.round(performance.now()-sent));updateNetworkStatus();sendNetworkState(true)}return}
   if(data.type==='welcome'){networkId=String(data.id||'');if(Number.isFinite(Number(data.x))&&Number.isFinite(Number(data.y))){player.x=clamp(Number(data.x),35,WORLD.w-35);player.y=clamp(Number(data.y),35,WORLD.h-35);camera.x=player.x;camera.y=player.y}sendNetworkState(true);return}
-  if(data.type==='error'){toast(String(data.message||'خطای سرور').slice(0,120));return}
-  if(data.type==='players'){
-   networkCount=Number.isFinite(data.count)?data.count:0;const next={};
-   if(Array.isArray(data.players))for(const other of data.players){
-    if(!other||String(other.id)===networkId)continue;
-    const id=String(other.id),old=networkPlayers[id],tx=Number(other.x),ty=Number(other.y);
-    if(!Number.isFinite(tx)||!Number.isFinite(ty))continue;
-    next[id]={id,name:String(other.name||'شهروند').slice(0,18),x:old&&Number.isFinite(old.x)?old.x:tx,y:old&&Number.isFinite(old.y)?old.y:ty,targetX:tx,targetY:ty,angle:Number(other.angle)||0,driving:!!other.driving,vehicleId:String(other.vehicleId||'hatch')};
-   }
-   networkPlayers=next;updateNetworkStatus();
-  }
+  if(data.type==='error'){networkIssue=String(data.message||'خطای سرور').slice(0,80);updateNetworkStatus();toast(networkIssue);return}
+  if(data.type==='players')applyPlayerSnapshot(data);
  });
- ws.addEventListener('error',()=>{if(networkSocket===ws){updateNetworkStatus()}});
+ ws.addEventListener('error',()=>{if(networkSocket===ws){networkIssue='خطای WebSocket';updateNetworkStatus()}});
  ws.addEventListener('close',()=>{
+  if(connectionAttemptTimer){clearTimeout(connectionAttemptTimer);connectionAttemptTimer=null}
+  if(httpMode)return;
   if(networkSocket===ws)networkSocket=null;networkPlayers={};networkCount=0;updateNetworkStatus();
-  if(started&&!reconnectTimer){reconnectTimer=setTimeout(()=>{reconnectTimer=null;connectOnline()},2500)}
+  if(!started)return;
+  connectFailures++;
+  if(connectFailures>=2){startHttpFallback();return}
+  if(!reconnectTimer)reconnectTimer=setTimeout(()=>{reconnectTimer=null;connectOnline()},1000);
  });
 }
 function drawWorld(){
@@ -386,7 +443,7 @@ $('exitCarBtn').addEventListener('click',()=>{if(!player.driving)return;player.d
 $('mapBtn').addEventListener('click',openMap);$('miniWrap').addEventListener('click',openMap);
 document.querySelectorAll('[data-close]').forEach(btn=>btn.addEventListener('click',()=>$(btn.dataset.close).hidden=true));
 $('mapOverlay').addEventListener('click',e=>{if(e.target===$('mapOverlay'))$('mapOverlay').hidden=true});$('garageOverlay').addEventListener('click',e=>{if(e.target===$('garageOverlay'))$('garageOverlay').hidden=true});
-function loop(now){const dt=Math.min(.04,Math.max(0,(now-lastTime)/1000));lastTime=now;update(dt);sendNetworkState();if(started&&networkSocket&&networkSocket.readyState===WebSocket.OPEN&&now>=nextPingAt){pingSentAt=now;nextPingAt=now+3000;try{networkSocket.send(JSON.stringify({type:'ping',t:pingSentAt}))}catch(_){}}const blend=1-Math.exp(-dt*13);for(const other of Object.values(networkPlayers)){if(Number.isFinite(other.targetX))other.x+=(other.targetX-other.x)*blend;if(Number.isFinite(other.targetY))other.y+=(other.targetY-other.y)*blend;}drawWorld();drawMap(mctx,mini.width,mini.height,false);if(!$('mapOverlay').hidden)drawMap(bctx,bigMap.width,bigMap.height,true);requestAnimationFrame(loop)}
+function loop(now){const dt=Math.min(.04,Math.max(0,(now-lastTime)/1000));lastTime=now;update(dt);sendNetworkState();if(started&&networkSocket&&networkSocket.readyState===WebSocket.OPEN&&now>=nextPingAt){pingSentAt=now;nextPingAt=now+1800;try{networkSocket.send(JSON.stringify({type:'ping',t:pingSentAt}))}catch(_){}}const blend=1-Math.exp(-dt*13);for(const other of Object.values(networkPlayers)){if(Number.isFinite(other.targetX))other.x+=(other.targetX-other.x)*blend;if(Number.isFinite(other.targetY))other.y+=(other.targetY-other.y)*blend;}drawWorld();drawMap(mctx,mini.width,mini.height,false);if(!$('mapOverlay').hidden)drawMap(bctx,bigMap.width,bigMap.height,true);requestAnimationFrame(loop)}
 // boot in a stable, stationary state. The welcome panel can be dismissed at any time.
 buildWorld();renderCars();updateHUD();requestAnimationFrame(loop);
 })();
