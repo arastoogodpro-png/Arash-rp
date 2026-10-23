@@ -14,8 +14,10 @@ INDEX_FILE = BASE_DIR / "index.html"
 WORLD_WIDTH = 2400
 WORLD_HEIGHT = 1800
 MAX_PLAYERS = 40
-BROADCAST_INTERVAL = 0.12  # about 8 live snapshots per second
-clients = {}  # WebSocketResponse -> player state; one shared game room per process
+BROADCAST_INTERVAL = 0.12
+POLL_SESSION_TTL = 35
+clients = {}       # WebSocketResponse -> player state
+poll_clients = {}  # session id -> player state for HTTP fallback
 
 
 def clean_name(value, fallback):
@@ -35,6 +37,34 @@ def safe_float(value, fallback, low, high):
         return fallback
 
 
+def new_player(name=None):
+    player_id = secrets.token_hex(5)
+    offset = (len(clients) + len(poll_clients)) % 16
+    return {
+        "id": player_id,
+        "name": clean_name(name, f"شهروند-{player_id[-4:].upper()}"),
+        "x": 1480 + (offset % 4) * 26,
+        "y": 890 + (offset // 4) * 30,
+        "angle": math.pi,
+        "driving": False,
+        "vehicleId": "hatch",
+        "pingMs": 0,
+        "last_seen": time.monotonic(),
+    }
+
+
+def update_state(state, data):
+    state["name"] = clean_name(data.get("name"), state["name"])
+    state["x"] = safe_float(data.get("x"), state["x"], 25, WORLD_WIDTH - 25)
+    state["y"] = safe_float(data.get("y"), state["y"], 25, WORLD_HEIGHT - 25)
+    state["angle"] = safe_float(data.get("angle"), state["angle"], -100000, 100000) % (math.pi * 2)
+    state["driving"] = bool(data.get("driving", False))
+    requested_car = str(data.get("vehicleId", "hatch"))
+    state["vehicleId"] = requested_car if requested_car in {"hatch", "sedan", "sport", "suv"} else "hatch"
+    state["pingMs"] = int(safe_float(data.get("pingMs"), state.get("pingMs", 0), 0, 5000))
+    state["last_seen"] = time.monotonic()
+
+
 def public_player(state):
     return {
         "id": state["id"],
@@ -44,42 +74,53 @@ def public_player(state):
         "angle": state["angle"],
         "driving": state["driving"],
         "vehicleId": state["vehicleId"],
+        "pingMs": state.get("pingMs", 0),
     }
+
+
+def prune_poll_clients():
+    now = time.monotonic()
+    expired = [sid for sid, state in poll_clients.items() if now - state.get("last_seen", now) > POLL_SESSION_TTL]
+    for sid in expired:
+        poll_clients.pop(sid, None)
+
+
+def all_public_players():
+    prune_poll_clients()
+    players = [public_player(state) for ws, state in list(clients.items()) if not ws.closed]
+    players.extend(public_player(state) for state in list(poll_clients.values()))
+    return players
 
 
 async def index_page(_request):
     response = web.FileResponse(INDEX_FILE)
-    response.headers["Cache-Control"] = "no-store"
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
     return response
 
 
 async def health(_request):
-    return web.json_response({"status": "ok", "players": len(clients)})
+    prune_poll_clients()
+    return web.json_response({
+        "status": "ok",
+        "players": len(clients) + len(poll_clients),
+        "websocket_players": sum(1 for ws in clients if not ws.closed),
+        "http_fallback_players": len(poll_clients),
+    }, headers={"Cache-Control": "no-store"})
 
 
 async def multiplayer_socket(request):
-    ws = web.WebSocketResponse(heartbeat=25, max_msg_size=4096, compress=False)
+    ws = web.WebSocketResponse(heartbeat=20, max_msg_size=4096, compress=False)
     await ws.prepare(request)
 
-    if len(clients) >= MAX_PLAYERS:
+    if len(clients) + len(poll_clients) >= MAX_PLAYERS:
         await ws.send_json({"type": "error", "message": f"شهر فعلاً پر است؛ سقف این نسخه {MAX_PLAYERS} بازیکن است."})
         await ws.close(code=1008, message=b"room full")
         return ws
 
-    player_id = secrets.token_hex(5)
-    offset = len(clients) % 8
-    state = {
-        "id": player_id,
-        "name": f"شهروند-{player_id[-4:].upper()}",
-        "x": 1480 + (offset % 4) * 26,
-        "y": 890 + (offset // 4) * 30,
-        "angle": math.pi,
-        "driving": False,
-        "vehicleId": "hatch",
-        "last_seen": time.monotonic(),
-    }
+    state = new_player()
     clients[ws] = state
-    await ws.send_json({"type": "welcome", "id": player_id, "x": state["x"], "y": state["y"]})
+    await ws.send_json({"type": "welcome", "id": state["id"], "x": state["x"], "y": state["y"]})
 
     try:
         async for message in ws:
@@ -91,44 +132,62 @@ async def multiplayer_socket(request):
                 if not isinstance(data, dict):
                     continue
                 if data.get("type") == "ping":
-                    # Small round-trip probe so the client can display connection latency.
                     await ws.send_json({"type": "pong", "t": data.get("t")})
                     continue
                 if data.get("type") != "state":
                     continue
-
-                state["name"] = clean_name(data.get("name"), state["name"])
-                state["x"] = safe_float(data.get("x"), state["x"], 25, WORLD_WIDTH - 25)
-                state["y"] = safe_float(data.get("y"), state["y"], 25, WORLD_HEIGHT - 25)
-                state["angle"] = safe_float(data.get("angle"), state["angle"], -100000, 100000) % (math.pi * 2)
-                state["driving"] = bool(data.get("driving", False))
-                requested_car = str(data.get("vehicleId", "hatch"))
-                state["vehicleId"] = requested_car if requested_car in {"hatch", "sedan", "sport", "suv"} else "hatch"
-                state["last_seen"] = time.monotonic()
+                update_state(state, data)
             elif message.type in (WSMsgType.ERROR, WSMsgType.CLOSE, WSMsgType.CLOSED):
                 break
     finally:
         clients.pop(ws, None)
-
     return ws
+
+
+async def api_join(request):
+    prune_poll_clients()
+    if len(clients) + len(poll_clients) >= MAX_PLAYERS:
+        return web.json_response({"error": "شهر فعلاً پر است."}, status=429)
+    try:
+        data = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    state = new_player(data.get("name"))
+    poll_clients[state["id"]] = state
+    return web.json_response({"type": "welcome", "id": state["id"], "x": state["x"], "y": state["y"]}, headers={"Cache-Control": "no-store"})
+
+
+async def api_tick(request):
+    try:
+        data = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({"error": "bad json"}, status=400)
+    if not isinstance(data, dict):
+        return web.json_response({"error": "bad data"}, status=400)
+    session_id = str(data.get("id", ""))
+    state = poll_clients.get(session_id)
+    if state is None:
+        return web.json_response({"error": "session expired"}, status=404, headers={"Cache-Control": "no-store"})
+    update_state(state, data)
+    players = all_public_players()
+    return web.json_response({"type": "players", "count": len(players), "players": players}, headers={"Cache-Control": "no-store"})
 
 
 async def broadcast_loop(app):
     while True:
         await asyncio.sleep(BROADCAST_INTERVAL)
-        if not clients:
-            continue
-        players = [public_player(state) for ws, state in list(clients.items()) if not ws.closed]
-        if not players:
-            continue
-        payload = json.dumps({"type": "players", "count": len(players), "players": players}, ensure_ascii=False, separators=(",", ":"))
         active_sockets = [ws for ws in list(clients.keys()) if not ws.closed]
-        if active_sockets:
-            results = await asyncio.gather(*(ws.send_str(payload) for ws in active_sockets), return_exceptions=True)
-            # Closed or broken sockets are removed by their own handler; this is a safe extra cleanup.
-            for ws, result in zip(active_sockets, results):
-                if isinstance(result, Exception):
-                    clients.pop(ws, None)
+        if not active_sockets:
+            prune_poll_clients()
+            continue
+        players = all_public_players()
+        payload = json.dumps({"type": "players", "count": len(players), "players": players}, ensure_ascii=False, separators=(",", ":"))
+        results = await asyncio.gather(*(ws.send_str(payload) for ws in active_sockets), return_exceptions=True)
+        for ws, result in zip(active_sockets, results):
+            if isinstance(result, Exception):
+                clients.pop(ws, None)
 
 
 async def on_startup(app):
@@ -152,6 +211,8 @@ def make_app():
     app.router.add_get("/", index_page)
     app.router.add_get("/healthz", health)
     app.router.add_get("/ws", multiplayer_socket)
+    app.router.add_post("/api/join", api_join)
+    app.router.add_post("/api/tick", api_tick)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
     return app
