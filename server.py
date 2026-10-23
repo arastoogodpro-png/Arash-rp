@@ -14,7 +14,7 @@ INDEX_FILE = BASE_DIR / "index.html"
 WORLD_WIDTH = 2400
 WORLD_HEIGHT = 1800
 MAX_PLAYERS = 40
-BROADCAST_INTERVAL = 0.12
+BROADCAST_INTERVAL = 0.15
 POLL_SESSION_TTL = 35
 clients = {}       # WebSocketResponse -> player state
 poll_clients = {}  # session id -> player state for HTTP fallback
@@ -48,7 +48,6 @@ def new_player(name=None):
         "angle": math.pi,
         "driving": False,
         "vehicleId": "hatch",
-        "pingMs": 0,
         "last_seen": time.monotonic(),
     }
 
@@ -61,7 +60,6 @@ def update_state(state, data):
     state["driving"] = bool(data.get("driving", False))
     requested_car = str(data.get("vehicleId", "hatch"))
     state["vehicleId"] = requested_car if requested_car in {"hatch", "sedan", "sport", "suv"} else "hatch"
-    state["pingMs"] = int(safe_float(data.get("pingMs"), state.get("pingMs", 0), 0, 5000))
     state["last_seen"] = time.monotonic()
 
 
@@ -74,7 +72,6 @@ def public_player(state):
         "angle": state["angle"],
         "driving": state["driving"],
         "vehicleId": state["vehicleId"],
-        "pingMs": state.get("pingMs", 0),
     }
 
 
@@ -132,7 +129,9 @@ async def multiplayer_socket(request):
                 if not isinstance(data, dict):
                     continue
                 if data.get("type") == "ping":
-                    await ws.send_json({"type": "pong", "t": data.get("t")})
+                    # Echo only the probe sequence. The browser measures elapsed
+                    # monotonic time; the server never invents or supplies a ping value.
+                    await ws.send_json({"type": "pong", "seq": data.get("seq")})
                     continue
                 if data.get("type") != "state":
                     continue
