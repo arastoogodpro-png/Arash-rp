@@ -88,7 +88,13 @@ async def multiplayer_socket(request):
                     data = json.loads(message.data)
                 except (json.JSONDecodeError, TypeError):
                     continue
-                if not isinstance(data, dict) or data.get("type") != "state":
+                if not isinstance(data, dict):
+                    continue
+                if data.get("type") == "ping":
+                    # Small round-trip probe so the client can display connection latency.
+                    await ws.send_json({"type": "pong", "t": data.get("t")})
+                    continue
+                if data.get("type") != "state":
                     continue
 
                 state["name"] = clean_name(data.get("name"), state["name"])
